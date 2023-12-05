@@ -3,6 +3,7 @@ import * as day1 from './lib/1-calorie-counting.js';
 import * as day2 from './lib/2-rock-paper-scissors.js';
 import * as day3 from './lib/3-rucksack-reorganisation.js';
 import * as day4 from './lib/4-camp-cleanup.js';
+import * as day5 from './lib/5-supply-stacks.js';
 
 const puzzleKey = process.argv[2];
 
@@ -17,6 +18,8 @@ const puzzleMap: Record<string, (input: string) => unknown> = {
   '3.2': day3.part2,
   '4.1': day4.part1,
   '4.2': day4.part2,
+  '5.1': day5.part1,
+  '5.2': day5.part2,
 };
 
 const puzzle = puzzleMap[puzzleKey];
