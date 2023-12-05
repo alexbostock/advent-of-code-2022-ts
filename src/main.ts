@@ -8,31 +8,15 @@ import * as day6 from './lib/6-tuning-trouble.js';
 
 const puzzleKey = process.argv[2];
 
-const [day] = puzzleKey.split('.');
+const [day, part] = puzzleKey.split('.');
 
-const puzzleMap: Record<string, (input: string) => unknown> = {
-  '1.1': day1.part1,
-  '1.2': day1.part2,
-  '2.1': day2.part1,
-  '2.2': day2.part2,
-  '3.1': day3.part1,
-  '3.2': day3.part2,
-  '4.1': day4.part1,
-  '4.2': day4.part2,
-  '5.1': day5.part1,
-  '5.2': day5.part2,
-  '6.1': day6.part1,
-  '6.2': day6.part2,
-};
+const puzzles = [day1, day2, day3, day4, day5, day6];
 
-const puzzle = puzzleMap[puzzleKey];
-
-if (!puzzle) {
-  throw new Error(`Cannot find puzzle ${puzzleKey}`);
-}
+const puzzle = puzzles[parseInt(day) - 1];
+const puzzlePart = part === '1' ? puzzle.part1 : puzzle.part2;
 
 const inputFile = await open(`input/${day}.txt`);
 const inputData = await inputFile.readFile('utf8');
 await inputFile.close();
-const solution = puzzle(inputData);
+const solution = puzzlePart(inputData);
 console.log(solution);
