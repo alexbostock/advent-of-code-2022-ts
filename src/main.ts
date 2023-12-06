@@ -3,6 +3,7 @@ import * as day1 from './lib/1-calorie-counting.js';
 import * as day10 from './lib/10-cathode-ray-tube.js';
 import * as day11 from './lib/11-monkey-in-the-middle.js';
 import * as day12 from './lib/12-hill-climbing-algorithm.js';
+import * as day13 from './lib/13-distress-signal.js';
 import * as day2 from './lib/2-rock-paper-scissors.js';
 import * as day3 from './lib/3-rucksack-reorganisation.js';
 import * as day4 from './lib/4-camp-cleanup.js';
@@ -29,6 +30,7 @@ const puzzles = [
   day10,
   day11,
   day12,
+  day13,
 ];
 
 const puzzle = puzzles[parseInt(day) - 1];
