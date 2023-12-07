@@ -52,53 +52,46 @@ export function part2Impl(
     sensorBeaconPairs.map(({ beacon }) => beacon.x * 4000000 + beacon.y),
   );
 
-  const [rangeStart, rangeEnd] = pickRange(maximumCoordComponent);
-  return searchRange(
-    sensorBeaconPairs,
-    knownBeaconPositions,
-    maximumCoordComponent,
-    rangeStart,
-    rangeEnd,
-  );
-}
-
-function pickRange(maximumCoordComponent: number) {
-  if (process.env.VITEST) {
-    return [0, maximumCoordComponent];
-  }
-
-  const threadNumber = parseInt(process.argv[3]);
-  if (![0, 1, 2, 3].includes(threadNumber)) {
-    throw new Error('Invalid thread number');
-  }
-
-  const rangeSizePerThread = maximumCoordComponent / 4;
-  const rangeStart = rangeSizePerThread * threadNumber;
-  const rangeEnd = rangeSizePerThread * (threadNumber + 1) - 1;
-
-  return [rangeStart, rangeEnd];
-}
-
-function searchRange(
-  sensorBeaconPairs: { sensor: Coords; beacon: Coords; distance: number }[],
-  knownBeaconPositions: Set<number>,
-  maximumCoordComponent: number,
-  rangeStart: number,
-  rangeEnd: number,
-) {
-  for (let x = rangeStart; x <= rangeEnd; x++) {
+  for (let x = 0; x <= maximumCoordComponent; x++) {
     for (let y = 0; y <= maximumCoordComponent; y++) {
-      if (!cannotContainBeacon({ x, y }, sensorBeaconPairs)) {
-        const tuningFrequency = x * 4000000 + y;
-        if (knownBeaconPositions.has(tuningFrequency)) {
-          continue;
-        }
+      const { position, tuningFrequency } = testPositionFast(
+        { x, y },
+        sensorBeaconPairs,
+        knownBeaconPositions,
+      );
+      if (tuningFrequency) {
         return tuningFrequency;
+      } else if (position) {
+        x = position.x;
+        y = position.y;
       }
     }
   }
 
   throw new Error('Solution not found');
+}
+
+function testPositionFast(
+  position: Coords,
+  sensorBeaconPairs: { sensor: Coords; distance: number }[],
+  knownBeaconPositions: Set<number>,
+): { tuningFrequency?: number; position?: Coords } {
+  for (const { sensor, distance } of sensorBeaconPairs) {
+    const withinZone = manhattanDistance(position, sensor) <= distance;
+    if (withinZone) {
+      const xDistanceToBeacon = Math.abs(sensor.x - position.x);
+      position.y = sensor.y + distance - xDistanceToBeacon;
+      return {
+        position,
+      };
+    }
+  }
+
+  const tuningFrequency = position.x * 4000000 + position.y;
+  if (knownBeaconPositions.has(tuningFrequency)) {
+    return { position };
+  }
+  return { tuningFrequency };
 }
 
 export function parseSensorReading(reading: string): {
