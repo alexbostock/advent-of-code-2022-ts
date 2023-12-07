@@ -5,6 +5,7 @@ import * as day11 from './lib/11-monkey-in-the-middle.js';
 import * as day12 from './lib/12-hill-climbing-algorithm.js';
 import * as day13 from './lib/13-distress-signal.js';
 import * as day14 from './lib/14-regolith-reservoir.js';
+import * as day15 from './lib/15-beacon-exclusion-zone.js';
 import * as day2 from './lib/2-rock-paper-scissors.js';
 import * as day3 from './lib/3-rucksack-reorganisation.js';
 import * as day4 from './lib/4-camp-cleanup.js';
@@ -33,6 +34,7 @@ const puzzles = [
   day12,
   day13,
   day14,
+  day15,
 ];
 
 const puzzle = puzzles[parseInt(day) - 1];
