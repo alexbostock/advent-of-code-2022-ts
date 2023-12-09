@@ -1,347 +1,175 @@
-interface ValveDetails {
+interface Valve {
   flowRate: number;
   neighbours: string[];
 }
+type Valves = Map<string, Valve>;
 
-export interface Valve {
-  id: string;
-  flowRate: number;
-  neighbours: Valve[];
+export interface Graph {
+  valveIds: string[]; // where flowRate > 0, not including start
+  valves: Map<
+    string,
+    {
+      flowRate: number;
+      distances: Map<string, number>; // other valve id -> distance
+    }
+  >;
+  valveData: Valves;
 }
 
-export type Action =
-  | {
-      type: 'TRAVEL_TO';
-      valve: Valve;
-    }
-  | {
-      type: 'OPEN';
-      valve: Valve;
-    };
-
-export type ActionOrDontCare =
-  | Action
-  | {
-      type: 'DONT_CARE';
-    };
-
 export function part1(input: string): number {
-  const { startValve, totalNumValves, allNonZeroFlowRatesSorted } =
-    parseInput(input);
+  const graph = parseInput(input);
 
   let maxFlow = 0;
-  for (const candidatePath of possiblePaths(
-    startValve,
-    totalNumValves,
-    30,
-    new Set(),
-    allNonZeroFlowRatesSorted,
-  )) {
-    const flow = totalFlowForPath(candidatePath);
+  for (const valveOrder of possibleValveOrders(graph.valveIds)) {
+    const flow = computeFlow(graph, valveOrder, 30);
     maxFlow = Math.max(maxFlow, flow);
   }
   return maxFlow;
 }
 
 export function part2(input: string) {
-  const { startValve, totalNumValves, allNonZeroFlowRatesSorted } =
-    parseInput(input);
-
-  let maxFlow = 0;
-  for (const candidatePath of possibleDualPaths(
-    startValve,
-    startValve,
-    totalNumValves,
-    26,
-    new Set(),
-    allNonZeroFlowRatesSorted,
-    new Set(),
-    new Set(),
-  )) {
-    const flow = totalFlowForDualPath(candidatePath);
-    maxFlow = Math.max(maxFlow, flow);
-  }
-  return maxFlow;
+  return 0;
 }
 
-export function parseInput(input: string): {
-  startValve: Valve;
-  totalNumValves: number;
-  allNonZeroFlowRatesSorted: number[];
-} {
-  const valveDetailsById: Map<string, ValveDetails> = new Map(
-    input
-      .split('\n')
-      .filter(val => val !== '')
-      .map(serialised => {
-        const [
-          _valve,
-          id,
-          _has,
-          _flow,
-          rateSerialised,
-          _tunnels,
-          _lead,
-          _to,
-          _valves,
-          ...neighboursSerialised
-        ] = serialised.split(' ');
-        const rate = parseInt(rateSerialised.slice(5, -1));
-        const neighbours = neighboursSerialised.join(' ').split(', ');
-        return [
-          id,
-          {
-            flowRate: rate,
-            neighbours,
-          },
-        ];
-      }),
+export function parseInput(input: string): Graph {
+  const lines = input.split('\n').filter(val => val !== '');
+  const valves: Valves = new Map(lines.map(parseLine));
+
+  const valvesToTraverse = [...valves.entries()].filter(
+    ([id, { flowRate }]) => flowRate > 0 || id === 'AA',
+  );
+  const valvesWithNonZeroFlow = valvesToTraverse.filter(
+    ([, { flowRate }]) => flowRate > 0,
   );
 
-  const valvesById: Map<string, Valve> = new Map();
-  for (const [id, valveDetails] of valveDetailsById.entries()) {
-    valvesById.set(id, {
-      id,
-      flowRate: valveDetails.flowRate,
-      neighbours: [],
-    });
-  }
-  for (const [id, valve] of valvesById.entries()) {
-    const valveDetails = valveDetailsById.get(id);
-    if (!valveDetails) {
-      throw new Error('Failed to fetch valve details');
-    }
-    valve.neighbours = valveDetails.neighbours.map(id => {
-      const neighbourValve = valvesById.get(id);
-      if (!neighbourValve) {
-        throw new Error('Failed to fetch neighbour valve');
-      }
-      return neighbourValve;
-    });
-  }
-
-  const startingValve = valvesById.get('AA');
-  if (!startingValve) {
-    throw new Error('Cannot find starting valve');
-  }
   return {
-    startValve: startingValve,
-    totalNumValves: [...valvesById.values()].filter(valve => valve.flowRate > 0)
-      .length,
-    allNonZeroFlowRatesSorted: [...valvesById.values()]
-      .map(({ flowRate }) => flowRate)
-      .filter(flowRate => flowRate > 0)
-      .sort((a, b) => a - b),
+    valveIds: valvesWithNonZeroFlow.map(([id]) => id),
+    valves: new Map(
+      valvesToTraverse.map(([fromId, { flowRate }]) => [
+        fromId,
+        {
+          flowRate,
+          distances: new Map<string, number>(),
+        },
+      ]),
+    ),
+    valveData: valves,
   };
 }
 
-export function possibleActions(
-  currentValve: Valve,
-  openValves: Set<Valve>,
-  unopenedValveFlowRatesSorted: number[],
-  valvesVisitedSinceLastOpen: Set<Valve>,
-): Action[] {
-  const maxmimumUnopenedFlowRate = unopenedValveFlowRatesSorted.at(-1);
-  const mustOpenCurrentValve =
-    maxmimumUnopenedFlowRate &&
-    !openValves.has(currentValve) &&
-    currentValve.flowRate === maxmimumUnopenedFlowRate;
-  if (mustOpenCurrentValve) {
-    return [{ type: 'OPEN', valve: currentValve }];
-  }
-
-  const actions: Action[] =
-    openValves.has(currentValve) || currentValve.flowRate === 0
-      ? []
-      : [{ type: 'OPEN', valve: currentValve }];
-
-  actions.push(
-    ...currentValve.neighbours
-      .filter(neighbour => !valvesVisitedSinceLastOpen.has(neighbour))
-      .map(valve => {
-        const action: Action = {
-          type: 'TRAVEL_TO',
-          valve,
-        };
-        return action;
-      }),
-  );
-  return actions;
+function parseLine(line: string): [id: string, Valve] {
+  const [, id, , , rateSerialised, , , , , ...neighboursSerialised] =
+    line.split(' ');
+  const [, flowRate] = rateSerialised.split('=');
+  const neighbours = neighboursSerialised.join(' ').split(', ');
+  return [id, { flowRate: parseInt(flowRate), neighbours }];
 }
 
-export function* possibleDualPaths(
-  currentValve1: Valve,
-  currentValve2: Valve,
-  totalNumValves: number,
-  numSteps: number,
-  openValves: Set<Valve> = new Set(),
-  unopenedValveFlowRatesSorted: number[],
-  valvesVisitedSinceLastOpen1: Set<Valve>,
-  valvesVisitedSinceLastOpen2: Set<Valve>,
-): Generator<[ActionOrDontCare, ActionOrDontCare][]> {
-  if (numSteps === 0) {
-    yield [];
-    return;
-  }
-  if (openValves.size === totalNumValves) {
-    yield new Array<[ActionOrDontCare, ActionOrDontCare]>(numSteps).fill([
-      { type: 'DONT_CARE' },
-      { type: 'DONT_CARE' },
-    ]);
-    return;
-  }
-
-  for (const action1 of possibleActions(
-    currentValve1,
-    openValves,
-    unopenedValveFlowRatesSorted,
-    valvesVisitedSinceLastOpen1,
-  )) {
-    const openValvesWithAction1 =
-      action1.type === 'OPEN'
-        ? new Set([...openValves, action1.valve])
-        : openValves;
-    const unopenedFlowRatesWithAction1 =
-      action1.type === 'OPEN'
-        ? dropOpenedValveFromFlowRates(
-            unopenedValveFlowRatesSorted,
-            action1.valve,
-          )
-        : unopenedValveFlowRatesSorted;
-    for (const action2 of possibleActions(
-      currentValve2,
-      openValvesWithAction1,
-      unopenedFlowRatesWithAction1,
-      valvesVisitedSinceLastOpen2,
-    )) {
-      const openValvesAfterActions =
-        action2.type === 'OPEN'
-          ? new Set([...openValvesWithAction1, action2.valve])
-          : openValvesWithAction1;
-      const unopenedFlowRatesAfterActions =
-        action2.type === 'OPEN'
-          ? dropOpenedValveFromFlowRates(
-              unopenedFlowRatesWithAction1,
-              action2.valve,
-            )
-          : unopenedFlowRatesWithAction1;
-
-      const possibleFuturePaths = possibleDualPaths(
-        action1.type === 'TRAVEL_TO' ? action1.valve : currentValve1,
-        action2.type === 'TRAVEL_TO' ? action2.valve : currentValve2,
-        totalNumValves,
-        numSteps - 1,
-        openValvesAfterActions,
-        unopenedFlowRatesAfterActions,
-        action1.type === 'TRAVEL_TO'
-          ? new Set([...valvesVisitedSinceLastOpen1, currentValve1])
-          : new Set(),
-        action2.type === 'TRAVEL_TO'
-          ? new Set([...valvesVisitedSinceLastOpen2, currentValve2])
-          : new Set(),
-      );
-
-      for (const possibleFuturePath of possibleFuturePaths) {
-        yield [[action1, action2], ...possibleFuturePath];
+function distance(valves: Valves, from: string, to: string) {
+  const visitedIds = new Set<string>();
+  const frontierQueue: { valveId: string; distance: number }[] = [
+    { valveId: from, distance: 0 },
+  ];
+  while (frontierQueue.length > 0) {
+    const { valveId, distance } = frontierQueue.shift()!;
+    if (valveId === to) {
+      return distance;
+    }
+    visitedIds.add(valveId);
+    const valve = valves.get(valveId)!;
+    for (const neighbour of valve.neighbours) {
+      if (!visitedIds.has(neighbour)) {
+        frontierQueue.push({ valveId: neighbour, distance: distance + 1 });
       }
     }
   }
+  throw new Error('No path found');
 }
 
-export function* possiblePaths(
-  currentValve: Valve,
-  totalNumValves: number,
-  numSteps: number,
-  openValves: Set<Valve> = new Set(),
-  unopenedValveFlowRatesSorted: number[],
-  valvesVisitedSinceLastOpen: Set<Valve> = new Set(),
-): Generator<ActionOrDontCare[]> {
-  if (numSteps === 0) {
+function* possibleValveOrders(ids: string[]): Generator<string[]> {
+  if (ids.length === 0) {
     yield [];
     return;
   }
-  if (openValves.size === totalNumValves) {
-    yield new Array<ActionOrDontCare>(numSteps).fill({ type: 'DONT_CARE' });
-    return;
-  }
-
-  for (const action of possibleActions(
-    currentValve,
-    openValves,
-    unopenedValveFlowRatesSorted,
-    valvesVisitedSinceLastOpen,
-  )) {
-    const possibleFuturePaths =
-      action.type === 'OPEN'
-        ? possiblePaths(
-            currentValve,
-            totalNumValves,
-            numSteps - 1,
-            new Set([...openValves, action.valve]),
-            dropOpenedValveFromFlowRates(
-              unopenedValveFlowRatesSorted,
-              action.valve,
-            ),
-            new Set(),
-          )
-        : possiblePaths(
-            action.valve,
-            totalNumValves,
-            numSteps - 1,
-            openValves,
-            unopenedValveFlowRatesSorted,
-            new Set([...valvesVisitedSinceLastOpen, currentValve]),
-          );
-
-    for (const possibleFuturePath of possibleFuturePaths) {
-      yield [action, ...possibleFuturePath];
+  for (const id of ids) {
+    const allOtherIds = ids.filter(otherId => otherId !== id);
+    for (const subOrder of possibleValveOrders(allOtherIds)) {
+      yield [id, ...subOrder];
     }
   }
 }
 
-function totalFlowForPath(path: ActionOrDontCare[]): number {
-  let cumulativeFlow = 0;
-  let flowRate = 0;
-  for (const action of path) {
-    cumulativeFlow += flowRate;
+// function * possibleDualValveOrders(ids: string[]): Generator<[string[], string[]]> {
+//   for (const subset of possibleSubsets(ids)) {
+//     const complement = ids.filter(id => !subset.includes(id));
 
-    if (action.type === 'OPEN') {
-      flowRate += action.valve.flowRate;
-    }
-  }
-  return cumulativeFlow;
-}
+//   }
+// }
 
-function totalFlowForDualPath(
-  dualPath: [ActionOrDontCare, ActionOrDontCare][],
+// function *possibleSubsets(ids: string[]): Generator<string[]> {
+//   if (ids.length === 0) {
+//     yield [];
+//     return
+//   }
+//   const first = ids[0]
+//   for (const subSubset of possibleSubsets(ids.slice(1))) {
+//     yield [first, ...subSubset];
+//     yield subSubset;
+//   }
+// }
+
+export function computeFlow(
+  graph: Graph,
+  valveOrder: string[],
+  numSteps: number,
 ): number {
   let cumulativeFlow = 0;
   let flowRate = 0;
-  for (const [action1, action2] of dualPath) {
-    cumulativeFlow += flowRate;
+  let stepNum = 0;
 
-    if (action1.type === 'OPEN') {
-      flowRate += action1.valve.flowRate;
+  let currentValveId = 'AA';
+  for (const nextValveId of valveOrder) {
+    const distance = loadDistance(
+      graph,
+      graph.valves.get(currentValveId)!.distances,
+      currentValveId,
+      nextValveId,
+    );
+
+    if (!distance) {
+      throw new Error('Cannot find path between valves');
     }
-    if (action2.type === 'OPEN') {
-      flowRate += action2.valve.flowRate;
+    for (let i = 0; i < distance + 1; i++) {
+      cumulativeFlow += flowRate;
+      stepNum++;
     }
+    const nextValve = graph.valves.get(nextValveId);
+    if (!nextValve) {
+      throw new Error('Cannot find next valve');
+    }
+    flowRate += nextValve.flowRate;
+
+    currentValveId = nextValveId;
   }
+
+  const stepsRemaining = numSteps - stepNum;
+  cumulativeFlow += stepsRemaining * flowRate;
+
   return cumulativeFlow;
 }
 
-function dropOpenedValveFromFlowRates(flowRates: number[], valve: Valve) {
-  let found = false;
-  return flowRates.filter(flowRate => {
-    if (found) {
-      return true;
-    } else {
-      if (flowRate === valve.flowRate) {
-        found = true;
-        return false;
-      } else {
-        return true;
-      }
-    }
-  });
+function loadDistance(
+  graph: Graph,
+  distances: Map<string, number>,
+  fromId: string,
+  toId: string,
+) {
+  const distanceCached = distances.get(toId);
+  if (distanceCached) {
+    return distanceCached;
+  } else {
+    const d = distance(graph.valveData, fromId, toId);
+    distances.set(toId, d);
+    return d;
+  }
 }

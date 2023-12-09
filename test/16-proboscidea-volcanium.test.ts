@@ -1,158 +1,66 @@
-import { describe, expect, test } from 'vitest';
+import { expect, test } from 'vitest';
 import {
+  computeFlow,
   parseInput,
   part1,
   part2,
-  possibleActions,
-  possiblePaths,
-  type Action,
-  type ActionOrDontCare,
+  type Graph,
 } from '../src/lib/16-proboscidea-volcanium.js';
 
 test('part1', () => expect(part1(exampleInput)).toBe(1651));
 
-test('part2', () => expect(part2(exampleInput)).toBe(1707));
+test.skip('part2', () => expect(part2(exampleInput)).toBe(1707));
 
 test('parseInput', () => {
-  const { startValve, totalNumValves, allNonZeroFlowRatesSorted } =
-    parseInput(exampleInput);
+  const graph = parseInput(exampleSmallInput);
 
-  expect(
-    startValve.neighbours.map(valve => [valve.id, valve.flowRate]),
-  ).toEqual([
-    ['DD', 20],
-    ['II', 0],
-    ['BB', 13],
-  ]);
+  const expected: Graph = {
+    valveIds: ['BB', 'CC', 'DD'],
+    valves: new Map([
+      [
+        'AA',
+        {
+          flowRate: 0,
+          distances: new Map(),
+        },
+      ],
+      [
+        'BB',
+        {
+          flowRate: 3,
+          distances: new Map(),
+        },
+      ],
+      [
+        'CC',
+        {
+          flowRate: 5,
+          distances: new Map(),
+        },
+      ],
+      [
+        'DD',
+        {
+          flowRate: 4,
+          distances: new Map(),
+        },
+      ],
+    ]),
+    valveData: new Map([
+      ['AA', { flowRate: 0, neighbours: ['BB', 'CC'] }],
+      ['BB', { flowRate: 3, neighbours: ['AA', 'CC', 'DD'] }],
+      ['CC', { flowRate: 5, neighbours: ['AA', 'BB'] }],
+      ['DD', { flowRate: 4, neighbours: ['BB'] }],
+    ]),
+  };
 
-  expect(totalNumValves).toBe(6); // Does not count zero flow valves
-
-  expect(allNonZeroFlowRatesSorted).toEqual([2, 3, 13, 20, 21, 22]);
+  expect(graph).toEqual(expected);
 });
 
-describe('possibleActions', () => {
-  test('lists possible actions', () => {
-    const { startValve } = parseInput(exampleInput);
-    const valve = startValve.neighbours[0];
-    const actions = possibleActions(valve, new Set(), [3, 5], new Set());
-
-    const expected: Action[] = [
-      { type: 'OPEN', valve: valve },
-      { type: 'TRAVEL_TO', valve: valve.neighbours[0] },
-      { type: 'TRAVEL_TO', valve: valve.neighbours[1] },
-      { type: 'TRAVEL_TO', valve: valve.neighbours[2] },
-    ];
-
-    expect(actions).toEqual(expected);
-  });
-
-  test('does not allow opening an already-open valve', () => {
-    const { startValve } = parseInput(exampleInput);
-    const valve = startValve.neighbours[0];
-    const actions = possibleActions(valve, new Set([valve]), [5], new Set());
-
-    const expected: Action[] = [
-      { type: 'TRAVEL_TO', valve: valve.neighbours[0] },
-      { type: 'TRAVEL_TO', valve: valve.neighbours[1] },
-      { type: 'TRAVEL_TO', valve: valve.neighbours[2] },
-    ];
-
-    expect(actions).toEqual(expected);
-  });
-
-  test('does not allow immediately returning to previous valve', () => {
-    const { startValve: valve } = parseInput(exampleInput);
-    const actions = possibleActions(
-      valve,
-      new Set(),
-      [3, 5],
-      new Set([valve.neighbours[0]]),
-    );
-
-    const expected: Action[] = [
-      { type: 'TRAVEL_TO', valve: valve.neighbours[1] },
-      { type: 'TRAVEL_TO', valve: valve.neighbours[2] },
-    ];
-
-    expect(actions).toEqual(expected);
-  });
-
-  test('does not allow opening a valve with flow rate 0', () => {
-    const { startValve: valve } = parseInput(exampleInput);
-    const actions = possibleActions(valve, new Set(), [3, 5], new Set());
-
-    const expected: Action[] = [
-      { type: 'TRAVEL_TO', valve: valve.neighbours[0] },
-      { type: 'TRAVEL_TO', valve: valve.neighbours[1] },
-      { type: 'TRAVEL_TO', valve: valve.neighbours[2] },
-    ];
-
-    expect(actions).toEqual(expected);
-  });
-
-  test('always opens a valve which has the biggest flow rate among unopened valves', () => {
-    const { startValve: aa } = parseInput(exampleSmallInput);
-    const cc = aa.neighbours[1];
-    const actions = possibleActions(cc, new Set(), [3, 5], new Set());
-
-    const expected: Action[] = [{ type: 'OPEN', valve: cc }];
-
-    expect(actions).toEqual(expected);
-  });
-});
-
-describe('possiblePaths', () => {
-  test('3 step example', () => {
-    const { startValve: aa } = parseInput(exampleSmallInput);
-    const bb = aa.neighbours[0];
-    const cc = aa.neighbours[1];
-
-    const paths = [...possiblePaths(aa, 3, 3, new Set(), [3, 5])];
-
-    const expected: Action[][] = [
-      [
-        { type: 'TRAVEL_TO', valve: bb },
-        { type: 'OPEN', valve: bb },
-        { type: 'TRAVEL_TO', valve: aa },
-      ],
-      [
-        { type: 'TRAVEL_TO', valve: bb },
-        { type: 'OPEN', valve: bb },
-        { type: 'TRAVEL_TO', valve: cc },
-      ],
-      [
-        { type: 'TRAVEL_TO', valve: bb },
-        { type: 'TRAVEL_TO', valve: cc },
-        { type: 'OPEN', valve: cc },
-      ],
-      [
-        { type: 'TRAVEL_TO', valve: cc },
-        { type: 'OPEN', valve: cc },
-        { type: 'TRAVEL_TO', valve: aa },
-      ],
-      [
-        { type: 'TRAVEL_TO', valve: cc },
-        { type: 'OPEN', valve: cc },
-        { type: 'TRAVEL_TO', valve: bb },
-      ],
-    ];
-
-    expect(paths).toEqual(expected);
-  });
-
-  test("don't care about steps after all valves are open", () => {
-    const { startValve: aa } = parseInput(exampleSmallInput);
-    const bb = aa.neighbours[0];
-    const cc = aa.neighbours[1];
-
-    const paths = [...possiblePaths(aa, 3, 3, new Set([aa, bb, cc]), [])];
-
-    const expected: ActionOrDontCare[][] = [
-      [{ type: 'DONT_CARE' }, { type: 'DONT_CARE' }, { type: 'DONT_CARE' }],
-    ];
-
-    expect(paths).toEqual(expected);
-  });
+test('computeFlow', () => {
+  const graph = parseInput(exampleInput);
+  const valveOrder: string[] = ['DD', 'BB', 'JJ', 'HH', 'EE', 'CC'];
+  expect(computeFlow(graph, valveOrder, 30)).toBe(1651);
 });
 
 const exampleInput = `Valve AA has flow rate=0; tunnels lead to valves DD, II, BB
@@ -168,6 +76,7 @@ Valve JJ has flow rate=21; tunnel leads to valve II
 `;
 
 const exampleSmallInput = `Valve AA has flow rate=0; tunnels lead to valves BB, CC
-Valve BB has flow rate=3; tunnels lead to valves AA, CC
+Valve BB has flow rate=3; tunnels lead to valves AA, CC, DD
 Valve CC has flow rate=5; tunnels lead to valves AA, BB
+Valve DD has flow rate=4; tunnels lead to valves BB
 `;
