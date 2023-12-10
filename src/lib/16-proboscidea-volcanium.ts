@@ -74,18 +74,8 @@ export function parseInput(input: string): {
       .split('\n')
       .filter(val => val !== '')
       .map(serialised => {
-        const [
-          _valve,
-          id,
-          _has,
-          _flow,
-          rateSerialised,
-          _tunnels,
-          _lead,
-          _to,
-          _valves,
-          ...neighboursSerialised
-        ] = serialised.split(' ');
+        const [, id, , , rateSerialised, , , , , ...neighboursSerialised] =
+          serialised.split(' ');
         const rate = parseInt(rateSerialised.slice(5, -1));
         const neighbours = neighboursSerialised.join(' ').split(', ');
         return [
@@ -208,6 +198,7 @@ export function* possibleDualPaths(
             action1.valve,
           )
         : unopenedValveFlowRatesSorted;
+
     for (const action2 of possibleActions(
       currentValve2,
       openValvesWithAction1,
